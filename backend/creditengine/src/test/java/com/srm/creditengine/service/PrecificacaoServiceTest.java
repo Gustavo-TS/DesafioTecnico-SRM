@@ -22,7 +22,7 @@ class PrecificacaoServiceTest {
                 new ChequeStrategy()
         );
 
-        cambioService = new CambioService();
+        cambioService = new CambioService(null);
     }
 
     @Test
