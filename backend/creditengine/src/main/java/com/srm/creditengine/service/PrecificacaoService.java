@@ -1,5 +1,6 @@
 package com.srm.creditengine.service;
 
+import com.srm.creditengine.model.ResultadoPrecificacao;
 import com.srm.creditengine.model.TipoRecebivel;
 import com.srm.creditengine.strategy.ChequeStrategy;
 import com.srm.creditengine.strategy.DuplicataStrategy;
@@ -55,5 +56,29 @@ public class PrecificacaoService {
             case DUPLICATA -> duplicataStrategy;
             case CHEQUE -> chequeStrategy;
         };
+    }
+    
+    public ResultadoPrecificacao calcular(
+            TipoRecebivel tipo,
+            BigDecimal valorFace,
+            int prazoMeses
+    ) {
+        PrecificacaoStrategy strategy = obterStrategy(tipo);
+
+        BigDecimal valorPresente = strategy
+                .calcularValorPresente(valorFace, TAXA_BASE, prazoMeses)
+                .setScale(2, RoundingMode.HALF_EVEN);
+
+        BigDecimal desagio = valorFace
+                .subtract(valorPresente)
+                .setScale(2, RoundingMode.HALF_EVEN);
+
+        return new ResultadoPrecificacao(
+                TAXA_BASE,
+                strategy.getSpread(),
+                prazoMeses,
+                valorPresente,
+                desagio
+        );
     }
 }
