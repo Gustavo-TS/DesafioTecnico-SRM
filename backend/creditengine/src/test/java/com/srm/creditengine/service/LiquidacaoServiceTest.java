@@ -1,23 +1,29 @@
 package com.srm.creditengine.service;
 
-import com.srm.creditengine.model.*;
-import com.srm.creditengine.repository.LiquidacaoRepository;
-import com.srm.creditengine.repository.RecebivelRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import java.time.OffsetDateTime;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.srm.creditengine.model.Liquidacao;
+import com.srm.creditengine.model.Moeda;
+import com.srm.creditengine.model.Recebivel;
+import com.srm.creditengine.model.ResultadoPrecificacao;
+import com.srm.creditengine.model.StatusRecebivel;
+import com.srm.creditengine.model.TaxaCambio;
+import com.srm.creditengine.model.TipoRecebivel;
+import com.srm.creditengine.repository.LiquidacaoRepository;
+import com.srm.creditengine.repository.RecebivelRepository;
 
 class LiquidacaoServiceTest {
 
@@ -45,6 +51,7 @@ class LiquidacaoServiceTest {
 
     @Test
     void deveLiquidarRecebivelEmBrl() {
+
         UUID recebivelId = UUID.randomUUID();
 
         Recebivel recebivel = new Recebivel();
@@ -71,6 +78,11 @@ class LiquidacaoServiceTest {
 
         when(liquidacaoRepository.existsByRecebivelId(recebivelId))
                 .thenReturn(false);
+
+        when(precificacaoService.calcularPrazoMeses(
+                any(LocalDate.class),
+                eq(recebivel.getDataVencimento())
+        )).thenReturn(3);
 
         when(precificacaoService.calcular(
                 TipoRecebivel.DUPLICATA,
@@ -105,22 +117,29 @@ class LiquidacaoServiceTest {
         verify(cambioService, never())
                 .buscarTaxaVigente(any(), any(), any());
     }
-    
+
     @Test
     void deveRetornarLiquidacaoExistenteQuandoIdempotencyKeyJaExistir() {
 
+        UUID recebivelId = UUID.randomUUID();
         String idempotencyKey = "abc-123";
 
+        Recebivel recebivel = new Recebivel();
+        recebivel.setId(recebivelId);
+
         Liquidacao liquidacaoExistente = new Liquidacao();
+        liquidacaoExistente.setRecebivel(recebivel);
         liquidacaoExistente.setIdempotencyKey(idempotencyKey);
-        liquidacaoExistente.setValorFinal(new BigDecimal("92859.94"));
+        liquidacaoExistente.setValorFinal(
+                new BigDecimal("92859.94")
+        );
         liquidacaoExistente.setMoedaPagamento(Moeda.BRL);
 
         when(liquidacaoRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.of(liquidacaoExistente));
 
         Liquidacao resultado = liquidacaoService.liquidar(
-                UUID.randomUUID(),
+                recebivelId,
                 Moeda.BRL,
                 idempotencyKey
         );
@@ -136,9 +155,43 @@ class LiquidacaoServiceTest {
                 cambioService
         );
     }
-    
+
+    @Test
+    void deveImpedirReutilizacaoDaIdempotencyKeyEmOutraOperacao() {
+
+        UUID recebivelOriginalId = UUID.randomUUID();
+        UUID outroRecebivelId = UUID.randomUUID();
+
+        Recebivel recebivelOriginal = new Recebivel();
+        recebivelOriginal.setId(recebivelOriginalId);
+
+        Liquidacao liquidacaoExistente = new Liquidacao();
+        liquidacaoExistente.setRecebivel(recebivelOriginal);
+        liquidacaoExistente.setMoedaPagamento(Moeda.BRL);
+        liquidacaoExistente.setIdempotencyKey("abc-123");
+
+        when(liquidacaoRepository.findByIdempotencyKey("abc-123"))
+                .thenReturn(Optional.of(liquidacaoExistente));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> liquidacaoService.liquidar(
+                        outroRecebivelId,
+                        Moeda.BRL,
+                        "abc-123"
+                )
+        );
+
+        verifyNoInteractions(
+                recebivelRepository,
+                precificacaoService,
+                cambioService
+        );
+    }
+
     @Test
     void deveLiquidarRecebivelEmUsd() {
+
         UUID recebivelId = UUID.randomUUID();
 
         Recebivel recebivel = new Recebivel();
@@ -161,7 +214,9 @@ class LiquidacaoServiceTest {
         taxaCambio.setMoedaOrigem(Moeda.BRL);
         taxaCambio.setMoedaDestino(Moeda.USD);
         taxaCambio.setTaxa(new BigDecimal("5.4321"));
-        taxaCambio.setVigenteEm(OffsetDateTime.now().minusMinutes(5));
+        taxaCambio.setVigenteEm(
+                OffsetDateTime.now().minusMinutes(5)
+        );
 
         when(liquidacaoRepository.findByIdempotencyKey("usd-123"))
                 .thenReturn(Optional.empty());
@@ -171,6 +226,11 @@ class LiquidacaoServiceTest {
 
         when(liquidacaoRepository.existsByRecebivelId(recebivelId))
                 .thenReturn(false);
+
+        when(precificacaoService.calcularPrazoMeses(
+                any(LocalDate.class),
+                eq(recebivel.getDataVencimento())
+        )).thenReturn(3);
 
         when(precificacaoService.calcular(
                 TipoRecebivel.DUPLICATA,
@@ -198,15 +258,35 @@ class LiquidacaoServiceTest {
                 "usd-123"
         );
 
-        assertEquals(new BigDecimal("17094.67"), resultado.getValorFinal());
-        assertEquals(Moeda.USD, resultado.getMoedaPagamento());
-        assertEquals(new BigDecimal("5.4321"), resultado.getTaxaCambioUtilizada());
-        assertEquals(taxaCambio.getVigenteEm(), resultado.getTaxaCambioVigenteEm());
-        assertEquals(StatusRecebivel.LIQUIDADO, recebivel.getStatus());
+        assertEquals(
+                new BigDecimal("17094.67"),
+                resultado.getValorFinal()
+        );
+
+        assertEquals(
+                Moeda.USD,
+                resultado.getMoedaPagamento()
+        );
+
+        assertEquals(
+                new BigDecimal("5.4321"),
+                resultado.getTaxaCambioUtilizada()
+        );
+
+        assertEquals(
+                taxaCambio.getVigenteEm(),
+                resultado.getTaxaCambioVigenteEm()
+        );
+
+        assertEquals(
+                StatusRecebivel.LIQUIDADO,
+                recebivel.getStatus()
+        );
     }
-    
+
     @Test
     void deveImpedirNovaLiquidacaoQuandoRecebivelJaEstiverLiquidado() {
+
         UUID recebivelId = UUID.randomUUID();
 
         Recebivel recebivel = new Recebivel();
@@ -236,5 +316,4 @@ class LiquidacaoServiceTest {
                 cambioService
         );
     }
-    
 }
