@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
+import com.srm.creditengine.exception.RecursoNaoEncontradoException;
 import com.srm.creditengine.model.Cedente;
 import com.srm.creditengine.model.Recebivel;
 import com.srm.creditengine.model.StatusRecebivel;
@@ -38,10 +39,10 @@ public class RecebivelService {
         Cedente cedente = cedenteRepository
                 .findById(cedenteId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new RecursoNaoEncontradoException(
                                 "Cedente não encontrado"
                         )
-                );
+                ); 
 
         Recebivel recebivel = new Recebivel();
 
@@ -55,10 +56,11 @@ public class RecebivelService {
     }
 
     public Recebivel buscarPorId(UUID id) {
+
         return recebivelRepository
                 .findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new RecursoNaoEncontradoException(
                                 "Recebível não encontrado"
                         )
                 );
