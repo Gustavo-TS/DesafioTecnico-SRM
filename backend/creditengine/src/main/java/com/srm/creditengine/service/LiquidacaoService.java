@@ -111,12 +111,29 @@ public class LiquidacaoService {
             String idempotencyKey
     ) {
 
-        var liquidacaoExistente =
-                liquidacaoRepository.findByIdempotencyKey(idempotencyKey);
+    	var liquidacaoExistente =
+    	        liquidacaoRepository.findByIdempotencyKey(idempotencyKey);
 
-        if (liquidacaoExistente.isPresent()) {
-            return liquidacaoExistente.get();
-        }
+    	if (liquidacaoExistente.isPresent()) {
+
+    	    Liquidacao existente = liquidacaoExistente.get();
+
+    	    boolean mesmoRecebivel =
+    	            existente.getRecebivel()
+    	                    .getId()
+    	                    .equals(recebivelId);
+
+    	    boolean mesmaMoeda =
+    	            existente.getMoedaPagamento() == moedaPagamento;
+
+    	    if (!mesmoRecebivel || !mesmaMoeda) {
+    	        throw new IllegalStateException(
+    	                "Idempotency-Key já utilizada para outra operação"
+    	        );
+    	    }
+
+    	    return existente;
+    	}
 
         Recebivel recebivel = recebivelRepository
                 .findById(recebivelId)
