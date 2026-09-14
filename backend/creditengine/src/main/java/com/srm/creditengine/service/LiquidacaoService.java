@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.Period;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class LiquidacaoService {
             LocalDate dataReferencia,
             LocalDate dataVencimento
     ) {
+
         if (!dataVencimento.isAfter(dataReferencia)) {
             throw new IllegalArgumentException(
                     "Data de vencimento deve ser posterior à data atual"
@@ -61,6 +63,45 @@ public class LiquidacaoService {
         }
 
         return meses;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Liquidacao> listar(
+            LocalDate dataInicio,
+            LocalDate dataFim,
+            UUID cedenteId,
+            Moeda moeda
+    ) {
+
+        if (dataInicio != null
+                && dataFim != null
+                && dataInicio.isAfter(dataFim)) {
+
+            throw new IllegalArgumentException(
+                    "Data inicial não pode ser posterior à data final"
+            );
+        }
+
+        OffsetDateTime inicio = dataInicio != null
+                ? dataInicio
+                    .atStartOfDay()
+                    .atOffset(OffsetDateTime.now().getOffset())
+                : null;
+
+        OffsetDateTime fim = dataFim != null
+                ? dataFim
+                    .plusDays(1)
+                    .atStartOfDay()
+                    .atOffset(OffsetDateTime.now().getOffset())
+                    .minusNanos(1)
+                : null;
+
+        return liquidacaoRepository.buscarComFiltros(
+                inicio,
+                fim,
+                cedenteId,
+                moeda
+        );
     }
 
     @Transactional
@@ -97,12 +138,12 @@ public class LiquidacaoService {
             );
         }
 
+        OffsetDateTime instanteOperacao = OffsetDateTime.now();
+
         int prazoMeses = calcularPrazoMeses(
-                LocalDate.now(),
+                instanteOperacao.toLocalDate(),
                 recebivel.getDataVencimento()
         );
-
-        OffsetDateTime instanteOperacao = OffsetDateTime.now();
 
         ResultadoPrecificacao precificacao =
                 precificacaoService.calcular(
@@ -137,6 +178,7 @@ public class LiquidacaoService {
             );
 
         } else {
+
             throw new IllegalArgumentException(
                     "Moeda de pagamento não suportada"
             );
