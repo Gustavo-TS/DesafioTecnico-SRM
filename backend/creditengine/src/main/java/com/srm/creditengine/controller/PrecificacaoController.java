@@ -1,6 +1,7 @@
 package com.srm.creditengine.controller;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 import org.springframework.http.ResponseEntity;
@@ -38,11 +39,16 @@ public class PrecificacaoController {
             @Valid @RequestBody SimulacaoRequest request
     ) {
 
+        int prazoMeses = precificacaoService.calcularPrazoMeses(
+                LocalDate.now(),
+                request.dataVencimento()
+        );
+
         ResultadoPrecificacao precificacao =
                 precificacaoService.calcular(
                         request.tipo(),
                         request.valorFace(),
-                        request.prazoMeses()
+                        prazoMeses
                 );
 
         BigDecimal taxaCambioUtilizada = null;

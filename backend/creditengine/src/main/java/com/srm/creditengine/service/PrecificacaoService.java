@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.Period;
 
 @Service
 public class PrecificacaoService {
@@ -56,6 +58,32 @@ public class PrecificacaoService {
             case DUPLICATA -> duplicataStrategy;
             case CHEQUE -> chequeStrategy;
         };
+    }
+    
+    public int calcularPrazoMeses(
+            LocalDate dataReferencia,
+            LocalDate dataVencimento
+    ) {
+
+        if (!dataVencimento.isAfter(dataReferencia)) {
+            throw new IllegalArgumentException(
+                    "Data de vencimento deve ser posterior à data atual"
+            );
+        }
+
+        Period periodo = Period.between(
+                dataReferencia,
+                dataVencimento
+        );
+
+        int meses = periodo.getYears() * 12
+                + periodo.getMonths();
+
+        if (periodo.getDays() > 0) {
+            meses++;
+        }
+
+        return meses;
     }
     
     public ResultadoPrecificacao calcular(

@@ -157,10 +157,11 @@ public class LiquidacaoService {
 
         OffsetDateTime instanteOperacao = OffsetDateTime.now();
 
-        int prazoMeses = calcularPrazoMeses(
-                instanteOperacao.toLocalDate(),
-                recebivel.getDataVencimento()
-        );
+        int prazoMeses =
+                precificacaoService.calcularPrazoMeses(
+                        instanteOperacao.toLocalDate(),
+                        recebivel.getDataVencimento()
+                );
 
         ResultadoPrecificacao precificacao =
                 precificacaoService.calcular(
