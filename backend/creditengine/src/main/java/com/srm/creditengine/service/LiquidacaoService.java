@@ -3,13 +3,13 @@ package com.srm.creditengine.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.Period;
 import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.srm.creditengine.exception.RecursoNaoEncontradoException;
 import com.srm.creditengine.model.Liquidacao;
 import com.srm.creditengine.model.Moeda;
 import com.srm.creditengine.model.Recebivel;
@@ -37,32 +37,6 @@ public class LiquidacaoService {
         this.recebivelRepository = recebivelRepository;
         this.precificacaoService = precificacaoService;
         this.cambioService = cambioService;
-    }
-
-    private int calcularPrazoMeses(
-            LocalDate dataReferencia,
-            LocalDate dataVencimento
-    ) {
-
-        if (!dataVencimento.isAfter(dataReferencia)) {
-            throw new IllegalArgumentException(
-                    "Data de vencimento deve ser posterior à data atual"
-            );
-        }
-
-        Period periodo = Period.between(
-                dataReferencia,
-                dataVencimento
-        );
-
-        int meses = periodo.getYears() * 12
-                + periodo.getMonths();
-
-        if (periodo.getDays() > 0) {
-            meses++;
-        }
-
-        return meses;
     }
 
     @Transactional(readOnly = true)
@@ -111,34 +85,34 @@ public class LiquidacaoService {
             String idempotencyKey
     ) {
 
-    	var liquidacaoExistente =
-    	        liquidacaoRepository.findByIdempotencyKey(idempotencyKey);
+        var liquidacaoExistente =
+                liquidacaoRepository.findByIdempotencyKey(idempotencyKey);
 
-    	if (liquidacaoExistente.isPresent()) {
+        if (liquidacaoExistente.isPresent()) {
 
-    	    Liquidacao existente = liquidacaoExistente.get();
+            Liquidacao existente = liquidacaoExistente.get();
 
-    	    boolean mesmoRecebivel =
-    	            existente.getRecebivel()
-    	                    .getId()
-    	                    .equals(recebivelId);
+            boolean mesmoRecebivel =
+                    existente.getRecebivel()
+                            .getId()
+                            .equals(recebivelId);
 
-    	    boolean mesmaMoeda =
-    	            existente.getMoedaPagamento() == moedaPagamento;
+            boolean mesmaMoeda =
+                    existente.getMoedaPagamento() == moedaPagamento;
 
-    	    if (!mesmoRecebivel || !mesmaMoeda) {
-    	        throw new IllegalStateException(
-    	                "Idempotency-Key já utilizada para outra operação"
-    	        );
-    	    }
+            if (!mesmoRecebivel || !mesmaMoeda) {
+                throw new IllegalStateException(
+                        "Idempotency-Key já utilizada para outra operação"
+                );
+            }
 
-    	    return existente;
-    	}
+            return existente;
+        }
 
         Recebivel recebivel = recebivelRepository
                 .findById(recebivelId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new RecursoNaoEncontradoException(
                                 "Recebível não encontrado"
                         )
                 );
