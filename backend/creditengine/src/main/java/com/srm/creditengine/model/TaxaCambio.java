@@ -47,4 +47,7 @@ public class TaxaCambio {
             criadoEm = OffsetDateTime.now();
         }
     }
+
+
+	
 }
