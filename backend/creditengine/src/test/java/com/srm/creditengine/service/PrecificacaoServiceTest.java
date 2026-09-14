@@ -1,14 +1,16 @@
 package com.srm.creditengine.service;
 
-import com.srm.creditengine.model.TipoRecebivel;
-import com.srm.creditengine.strategy.ChequeStrategy;
-import com.srm.creditengine.strategy.DuplicataStrategy;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.math.BigDecimal;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.srm.creditengine.model.ResultadoPrecificacao;
+import com.srm.creditengine.model.TipoRecebivel;
+import com.srm.creditengine.strategy.ChequeStrategy;
+import com.srm.creditengine.strategy.DuplicataStrategy;
 
 class PrecificacaoServiceTest {
 
@@ -27,64 +29,75 @@ class PrecificacaoServiceTest {
 
     @Test
     void deveCalcularGoldenCaseC1Duplicata() {
-        BigDecimal valorFace = new BigDecimal("100000.00");
 
-        BigDecimal valorPresente = precificacaoService.calcularValorPresente(
-                TipoRecebivel.DUPLICATA,
-                valorFace,
-                3
+        ResultadoPrecificacao resultado =
+                precificacaoService.calcular(
+                        TipoRecebivel.DUPLICATA,
+                        new BigDecimal("100000.00"),
+                        3
+                );
+
+        assertEquals(
+                new BigDecimal("92859.94"),
+                resultado.valorPresente()
         );
 
-        BigDecimal desagio = precificacaoService.calcularDesagio(
-                valorFace,
-                valorPresente
+        assertEquals(
+                new BigDecimal("7140.06"),
+                resultado.valorDesagio()
         );
-
-        assertEquals(new BigDecimal("92859.94"), valorPresente);
-        assertEquals(new BigDecimal("7140.06"), desagio);
     }
 
     @Test
     void deveCalcularGoldenCaseC2Cheque() {
-        BigDecimal valorFace = new BigDecimal("25000.00");
 
-        BigDecimal valorPresente = precificacaoService.calcularValorPresente(
-                TipoRecebivel.CHEQUE,
-                valorFace,
-                2
+        ResultadoPrecificacao resultado =
+                precificacaoService.calcular(
+                        TipoRecebivel.CHEQUE,
+                        new BigDecimal("25000.00"),
+                        2
+                );
+
+        assertEquals(
+                new BigDecimal("23337.77"),
+                resultado.valorPresente()
         );
 
-        BigDecimal desagio = precificacaoService.calcularDesagio(
-                valorFace,
-                valorPresente
+        assertEquals(
+                new BigDecimal("1662.23"),
+                resultado.valorDesagio()
         );
-
-        assertEquals(new BigDecimal("23337.77"), valorPresente);
-        assertEquals(new BigDecimal("1662.23"), desagio);
     }
 
     @Test
     void deveCalcularGoldenCaseC3DuplicataEmUsd() {
-        BigDecimal valorFace = new BigDecimal("100000.00");
 
-        BigDecimal valorPresenteBrl = precificacaoService.calcularValorPresente(
-                TipoRecebivel.DUPLICATA,
-                valorFace,
-                3
+        ResultadoPrecificacao resultado =
+                precificacaoService.calcular(
+                        TipoRecebivel.DUPLICATA,
+                        new BigDecimal("100000.00"),
+                        3
+                );
+
+        BigDecimal valorFinalUsd =
+                cambioService.converterBrlParaUsd(
+                        resultado.valorPresente(),
+                        new BigDecimal("5.4321")
+                );
+
+        assertEquals(
+                new BigDecimal("92859.94"),
+                resultado.valorPresente()
         );
 
-        BigDecimal desagio = precificacaoService.calcularDesagio(
-                valorFace,
-                valorPresenteBrl
+        assertEquals(
+                new BigDecimal("7140.06"),
+                resultado.valorDesagio()
         );
 
-        BigDecimal valorFinalUsd = cambioService.converterBrlParaUsd(
-                valorPresenteBrl,
-                new BigDecimal("5.4321")
+        assertEquals(
+                new BigDecimal("17094.67"),
+                valorFinalUsd
         );
-
-        assertEquals(new BigDecimal("92859.94"), valorPresenteBrl);
-        assertEquals(new BigDecimal("7140.06"), desagio);
-        assertEquals(new BigDecimal("17094.67"), valorFinalUsd);
     }
 }

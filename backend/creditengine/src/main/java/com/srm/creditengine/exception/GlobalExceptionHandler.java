@@ -42,6 +42,16 @@ public class GlobalExceptionHandler {
                 exception.getMessage()
         );
     }
+    
+    @ExceptionHandler(RecursoNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> tratarRecursoNaoEncontrado(
+            RecursoNaoEncontradoException exception
+    ) {
+        return criarResposta(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage()
+        );
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> tratarValidacao(
