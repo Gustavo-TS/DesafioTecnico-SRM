@@ -20,7 +20,11 @@ function App() {
   const [mensagem, setMensagem] = useState('')
   const [erro, setErro] = useState('')
   const [busy, setBusy] = useState('')
-  const chaveLiquidacao = useRef<string | null>(null)
+  const operacaoLiquidacao = useRef<{
+    chave: string
+    recebivelId: string
+    moedaPagamento: Moeda
+  } | null>(null)
   const formularioSimulacao = useRef<HTMLFormElement | null>(null)
   const [versaoSimulacao, setVersaoSimulacao] = useState(0)
   const sequenciaSimulacao = useRef(0)
@@ -120,16 +124,30 @@ function App() {
 
     <section id="liquidacao" hidden={secao !== 'todos' && secao !== 'liquidacao'}><h2>Liquidação</h2><form onSubmit={enviar('liquidar', async form => {
       const d = new FormData(form)
-      chaveLiquidacao.current ??= crypto.randomUUID()
+      const recebivelId = String(d.get('recebivelId'))
+      const moedaPagamento = String(d.get('moedaPagamento')) as Moeda
+      const operacaoAtual = operacaoLiquidacao.current
+
+      if (
+        !operacaoAtual ||
+        operacaoAtual.recebivelId !== recebivelId ||
+        operacaoAtual.moedaPagamento !== moedaPagamento
+      ) {
+        operacaoLiquidacao.current = {
+          chave: crypto.randomUUID(),
+          recebivelId,
+          moedaPagamento,
+        }
+      }
 
       const liquidacao = await api.liquidar(
-        String(d.get('recebivelId')),
-        String(d.get('moedaPagamento')) as Moeda,
-        chaveLiquidacao.current,
+        recebivelId,
+        moedaPagamento,
+        operacaoLiquidacao.current.chave,
       )
 
       setResultadoLiquidacao(liquidacao)
-      chaveLiquidacao.current = null
+      operacaoLiquidacao.current = null
 
       await carregar()
       setMensagem('Recebível liquidado.')
