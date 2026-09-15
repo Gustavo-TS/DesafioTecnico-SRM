@@ -115,8 +115,20 @@ function App() {
     })}><label>Cedente<select required name="cedenteId"><option value="">Selecione</option>{cedentes.map(cedente => <option key={cedente.id} value={cedente.id}>{cedente.nome}</option>)}</select></label><label>Tipo<select name="tipo">{opcoesTipo}</select></label>{campo('valorFace', 'Valor de face', 'number')}{campo('dataVencimento', 'Data de vencimento', 'date')}<button disabled={busy === 'recebivel'}>Cadastrar recebível</button></form></section>
 
     <section id="liquidacao" hidden={secao !== 'todos' && secao !== 'liquidacao'}><h2>Liquidação</h2><form onSubmit={enviar('liquidar', async form => {
-      const d = new FormData(form); chaveLiquidacao.current ??= crypto.randomUUID()
-      try { setResultadoLiquidacao(await api.liquidar(String(d.get('recebivelId')), String(d.get('moedaPagamento')) as Moeda, chaveLiquidacao.current)); await carregar(); setMensagem('Recebível liquidado.') } finally { chaveLiquidacao.current = null }
+      const d = new FormData(form)
+      chaveLiquidacao.current ??= crypto.randomUUID()
+
+      const liquidacao = await api.liquidar(
+        String(d.get('recebivelId')),
+        String(d.get('moedaPagamento')) as Moeda,
+        chaveLiquidacao.current,
+      )
+
+      setResultadoLiquidacao(liquidacao)
+      chaveLiquidacao.current = null
+
+      await carregar()
+      setMensagem('Recebível liquidado.')
     })}><label>Recebível<select required name="recebivelId"><option value="">{recebiveisPendentes.length ? 'Selecione' : 'Nenhum recebível pendente'}</option>{recebiveisPendentes.map(recebivel => <option key={recebivel.id} value={recebivel.id}>{recebivel.tipo} · {dinheiro(recebivel.valorFace)} · {recebivel.dataVencimento}</option>)}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{opcoesMoeda}</select></label><button className="liquidar-button" disabled={busy === 'liquidar' || !recebiveisPendentes.length}>Liquidar</button></form>{resultadoLiquidacao && <div className="resultado"><b>Resultado da liquidação</b><p>Valor presente <strong>{dinheiro(resultadoLiquidacao.valorPresente, 'BRL')}</strong></p><p>Deságio <strong>{dinheiro(resultadoLiquidacao.valorDesagio, 'BRL')}</strong></p><p>Prazo <strong>{resultadoLiquidacao.prazoMeses} meses</strong></p><p>Taxa base <strong>{percentual(resultadoLiquidacao.taxaBase)}</strong></p><p>Spread <strong>{percentual(resultadoLiquidacao.spread)}</strong></p>{resultadoLiquidacao.taxaCambioUtilizada != null && <p>Taxa de câmbio <strong>{resultadoLiquidacao.taxaCambioUtilizada}</strong></p>}<p className="total">Valor final <strong>{dinheiro(resultadoLiquidacao.valorFinal, resultadoLiquidacao.moedaPagamento)}</strong></p></div>}{!recebiveisPendentes.length && <p className="empty-hint">Cadastre um recebível ou selecione um que esteja pendente para liquidar.</p>}</section>
 
     <section id="extrato" hidden={secao !== 'todos' && secao !== 'extrato'}><h2>Extrato de liquidações</h2><form onSubmit={enviar('extrato', async form => {
