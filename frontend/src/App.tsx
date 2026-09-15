@@ -1,20 +1,65 @@
-import {useEffect,useState,type FormEvent} from 'react'
-import {api,type Cedente,type Recebivel,type Resultado,type Liquidacao} from './services/api'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { api, type Cedente, type Liquidacao, type Moeda, type Recebivel, type Resultado, type TipoRecebivel } from './services/api'
 import './styles.css'
-const M=['BRL','USD'], T=['DUPLICATA','CHEQUE']
-const money=(v:number|undefined,c='BRL')=>v==null?'—':new Intl.NumberFormat('pt-BR',{style:'currency',currency:c}).format(v)
-function ResultadoView({r}:{r:Resultado}){return <div className="resultado"><b>Resultado da operação</b><p>Valor presente <strong>{money(r.valorPresente,r.moedaPagamento)}</strong></p><p>Deságio <strong>{money(r.valorDesagio,r.moedaPagamento)}</strong></p><p>Prazo <strong>{r.prazoMeses} meses</strong></p><p>Spread <strong>{r.spread}%</strong></p><p>Taxa base <strong>{r.taxaBase}%</strong></p>{r.taxaCambioUtilizada!=null&&<p>Taxa de câmbio <strong>{r.taxaCambioUtilizada}</strong></p>}<p className="total">Valor final <strong>{money(r.valorFinal,r.moedaPagamento)}</strong></p></div>}
-function App(){
- const [cedentes,setCedentes]=useState<Cedente[]>([]),[recebiveis,setRecebiveis]=useState<Recebivel[]>([]),[resultado,setResultado]=useState<Resultado|null>(null),[extrato,setExtrato]=useState<Liquidacao[]>([]),[msg,setMsg]=useState(''),[busy,setBusy]=useState('')
- const load=async()=>{const [c,r]=await Promise.all([api.cedentes(),api.recebiveis()]);setCedentes(c);setRecebiveis(r)}
- useEffect(()=>{void load().catch(e=>setMsg(e.message))},[])
- const submit=(name:string,fn:()=>Promise<void>)=>async(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();setBusy(name);setMsg('');try{await fn()}catch(e){setMsg(e instanceof Error?e.message:'Erro ao processar solicitação.')}finally{setBusy('')}}
- const field=(name:string,label:string,type='text')=><label>{label}<input required name={name} type={type}/></label>
- return <main><header><div><small>SRM</small><h1>Credit Engine</h1></div><span>Recebíveis, câmbio e liquidação</span></header>{msg&&<div className="alert">{msg}</div>}
- <section><h2>Simulação de recebível</h2><form onSubmit={submit('simular',async()=>{const f=new FormData(event!.currentTarget as HTMLFormElement);setResultado(await api.simular({valorFace:Number(f.get('valorFace')),dataVencimento:f.get('dataVencimento'),tipo:f.get('tipo'),moedaPagamento:f.get('moedaPagamento')}))})}>{field('valorFace','Valor de face','number')}{field('dataVencimento','Data de vencimento','date')}<label>Tipo<select name="tipo">{T.map(x=><option key={x}>{x}</option>)}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{M.map(x=><option key={x}>{x}</option>)}</select></label><button disabled={busy==='simular'}>{busy==='simular'?'Simulando…':'Simular'}</button></form>{resultado&&<ResultadoView r={resultado}/>}</section>
- <div className="cols"><section><h2>Cadastro de cedente</h2><form onSubmit={submit('cedente',async()=>{const f=new FormData(event!.currentTarget as HTMLFormElement);await api.cedente({nome:String(f.get('nome')),documento:String(f.get('documento'))});await load();setMsg('Cedente cadastrado.')})}>{field('nome','Nome')}{field('documento','Documento')}<button disabled={busy==='cedente'}>Cadastrar cedente</button></form></section><section><h2>Cadastro de taxa de câmbio</h2><form onSubmit={submit('cambio',async()=>{const f=new FormData(event!.currentTarget as HTMLFormElement);await api.cambio({moedaOrigem:String(f.get('moedaOrigem')),moedaDestino:String(f.get('moedaDestino')),taxa:Number(f.get('taxa')),vigenteEm:new Date(String(f.get('vigenteEm'))).toISOString()});setMsg('Taxa de câmbio cadastrada.')})}><label>Origem<select name="moedaOrigem">{M.map(x=><option key={x}>{x}</option>)}</select></label><label>Destino<select name="moedaDestino">{M.map(x=><option key={x}>{x}</option>)}</select></label>{field('taxa','Taxa','number')}{field('vigenteEm','Vigente em','datetime-local')}<button disabled={busy==='cambio'}>Cadastrar taxa</button></form></section></div>
- <section><h2>Cadastro de recebível</h2><form onSubmit={submit('recebivel',async()=>{const f=new FormData(event!.currentTarget as HTMLFormElement);await api.recebivel({cedenteId:String(f.get('cedenteId')),tipo:String(f.get('tipo')),valorFace:Number(f.get('valorFace')),dataVencimento:String(f.get('dataVencimento'))});await load();setMsg('Recebível cadastrado.')})}><label>Cedente<select required name="cedenteId"><option value="">Selecione</option>{cedentes.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></label><label>Tipo<select name="tipo">{T.map(x=><option key={x}>{x}</option>)}</select></label>{field('valorFace','Valor de face','number')}{field('dataVencimento','Data de vencimento','date')}<button disabled={busy==='recebivel'}>Cadastrar recebível</button></form></section>
- <section><h2>Liquidação</h2><form onSubmit={submit('liquidar',async()=>{const f=new FormData(event!.currentTarget as HTMLFormElement);setResultado(await api.liquidar(String(f.get('recebivelId')),String(f.get('moedaPagamento'))));await load();setMsg('Recebível liquidado.')})}><label>Recebível<select required name="recebivelId"><option value="">Selecione</option>{recebiveis.filter(r=>r.status==='PENDENTE').map(r=><option key={r.id} value={r.id}>{r.tipo} · {money(r.valorFace)} · {r.dataVencimento}</option>)}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{M.map(x=><option key={x}>{x}</option>)}</select></label><button disabled={busy==='liquidar'}>{busy==='liquidar'?'Liquidando…':'Liquidar'}</button></form>{resultado&&<ResultadoView r={resultado}/>}</section>
- <section><h2>Extrato de liquidações</h2><form onSubmit={submit('extrato',async()=>{const f=new FormData(event!.currentTarget as HTMLFormElement);setExtrato(await api.liquidacoes({dataInicio:String(f.get('dataInicio')||''),dataFim:String(f.get('dataFim')||''),cedenteId:String(f.get('cedenteId')||''),moedaPagamento:String(f.get('moedaPagamento')||'')}))})}>{field('dataInicio','Data inicial','date')}{field('dataFim','Data final','date')}<label>Cedente<select name="cedenteId"><option value="">Todos</option>{cedentes.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></label><label>Moeda<select name="moedaPagamento"><option value="">Todas</option>{M.map(x=><option key={x}>{x}</option>)}</select></label><button disabled={busy==='extrato'}>Filtrar</button></form>{extrato.length>0&&<table><thead><tr><th>Data</th><th>Recebível</th><th>Moeda</th><th>Valor final</th></tr></thead><tbody>{extrato.map(x=><tr key={x.id}><td>{new Date(x.liquidadoEm).toLocaleString('pt-BR')}</td><td>{x.recebivelId}</td><td>{x.moedaPagamento}</td><td>{money(x.valorFinal,x.moedaPagamento)}</td></tr>)}</tbody></table>}</section></main>
+
+const moedas: Moeda[] = ['BRL', 'USD']
+const tipos: TipoRecebivel[] = ['DUPLICATA', 'CHEQUE']
+const dinheiro = (valor: number | undefined, moeda: Moeda = 'BRL') => valor == null ? '—' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(valor)
+
+function App() {
+  const [cedentes, setCedentes] = useState<Cedente[]>([])
+  const [recebiveis, setRecebiveis] = useState<Recebivel[]>([])
+  const [resultado, setResultado] = useState<Resultado | null>(null)
+  const [liquidacoes, setLiquidacoes] = useState<Liquidacao[]>([])
+  const [mensagem, setMensagem] = useState('')
+  const [busy, setBusy] = useState('')
+  const chaveLiquidacao = useRef<string | null>(null)
+
+  const carregar = async () => {
+    const [listaCedentes, listaRecebiveis] = await Promise.all([api.listarCedentes(), api.listarRecebiveis()])
+    setCedentes(listaCedentes)
+    setRecebiveis(listaRecebiveis)
+  }
+
+  const mostrarErro = (erro: unknown) => setMensagem(erro instanceof Error ? erro.message : 'Erro ao processar solicitação.')
+  useEffect(() => { void carregar().catch(mostrarErro) }, [])
+  const enviar = (nome: string, acao: (form: HTMLFormElement) => Promise<void>) => async (evento: FormEvent<HTMLFormElement>) => {
+    evento.preventDefault(); setBusy(nome); setMensagem('')
+    try { await acao(evento.currentTarget) } catch (erro) { mostrarErro(erro) } finally { setBusy('') }
+  }
+  const campo = (name: string, label: string, type = 'text') => <label>{label}<input required name={name} type={type} /></label>
+  const opcoesMoeda = moedas.map(moeda => <option key={moeda}>{moeda}</option>)
+  const opcoesTipo = tipos.map(tipo => <option key={tipo}>{tipo}</option>)
+
+  return <main>
+    <header><div><small>SRM</small><h1>Credit Engine</h1></div><span>Recebíveis, câmbio e liquidação</span></header>
+    {mensagem && <div className="alert">{mensagem}</div>}
+
+    <section><h2>Simulação de recebível</h2><form onSubmit={enviar('simular', async form => {
+      const d = new FormData(form)
+      setResultado(await api.simular({ valorFace: Number(d.get('valorFace')), dataVencimento: String(d.get('dataVencimento')), tipo: String(d.get('tipo')) as TipoRecebivel, moedaPagamento: String(d.get('moedaPagamento')) as Moeda }))
+    })}>{campo('valorFace', 'Valor de face', 'number')}{campo('dataVencimento', 'Data de vencimento', 'date')}<label>Tipo<select name="tipo">{opcoesTipo}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{opcoesMoeda}</select></label><button disabled={busy === 'simular'}>Simular</button></form>{resultado && <div className="resultado"><b>Resultado da operação</b><p>Valor presente <strong>{dinheiro(resultado.valorPresente, resultado.moedaPagamento)}</strong></p><p>Deságio <strong>{dinheiro(resultado.valorDesagio, resultado.moedaPagamento)}</strong></p><p>Prazo <strong>{resultado.prazoMeses} meses</strong></p><p className="total">Valor final <strong>{dinheiro(resultado.valorFinal, resultado.moedaPagamento)}</strong></p></div>}</section>
+
+    <div className="cols"><section><h2>Cadastro de cedente</h2><form onSubmit={enviar('cedente', async form => {
+      const d = new FormData(form); await api.criarCedente({ nome: String(d.get('nome')), documento: String(d.get('documento')) }); await carregar(); setMensagem('Cedente cadastrado.')
+    })}>{campo('nome', 'Nome')}{campo('documento', 'Documento')}<button disabled={busy === 'cedente'}>Cadastrar cedente</button></form></section>
+      <section><h2>Cadastro de taxa de câmbio</h2><form onSubmit={enviar('cambio', async form => {
+        const d = new FormData(form); await api.criarTaxaCambio({ moedaOrigem: String(d.get('origem')) as Moeda, moedaDestino: String(d.get('destino')) as Moeda, taxa: Number(d.get('taxa')), vigenteEm: new Date(String(d.get('vigenteEm'))).toISOString() }); setMensagem('Taxa de câmbio cadastrada.')
+      })}><label>Origem<select name="origem">{opcoesMoeda}</select></label><label>Destino<select name="destino">{opcoesMoeda}</select></label>{campo('taxa', 'Taxa', 'number')}{campo('vigenteEm', 'Vigente em', 'datetime-local')}<button disabled={busy === 'cambio'}>Cadastrar taxa</button></form></section></div>
+
+    <section><h2>Cadastro de recebível</h2><form onSubmit={enviar('recebivel', async form => {
+      const d = new FormData(form); await api.criarRecebivel({ cedenteId: String(d.get('cedenteId')), tipo: String(d.get('tipo')) as TipoRecebivel, valorFace: Number(d.get('valorFace')), dataVencimento: String(d.get('dataVencimento')) }); await carregar(); setMensagem('Recebível cadastrado.')
+    })}><label>Cedente<select required name="cedenteId"><option value="">Selecione</option>{cedentes.map(cedente => <option key={cedente.id} value={cedente.id}>{cedente.nome}</option>)}</select></label><label>Tipo<select name="tipo">{opcoesTipo}</select></label>{campo('valorFace', 'Valor de face', 'number')}{campo('dataVencimento', 'Data de vencimento', 'date')}<button disabled={busy === 'recebivel'}>Cadastrar recebível</button></form></section>
+
+    <section><h2>Liquidação</h2><form onSubmit={enviar('liquidar', async form => {
+      const d = new FormData(form); chaveLiquidacao.current ??= crypto.randomUUID()
+      try { setResultado(await api.liquidar(String(d.get('recebivelId')), String(d.get('moedaPagamento')) as Moeda, chaveLiquidacao.current)); await carregar(); setMensagem('Recebível liquidado.') } finally { chaveLiquidacao.current = null }
+    })}><label>Recebível<select required name="recebivelId"><option value="">Selecione</option>{recebiveis.filter(recebivel => recebivel.status === 'PENDENTE').map(recebivel => <option key={recebivel.id} value={recebivel.id}>{recebivel.tipo} · {dinheiro(recebivel.valorFace)} · {recebivel.dataVencimento}</option>)}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{opcoesMoeda}</select></label><button disabled={busy === 'liquidar'}>Liquidar</button></form></section>
+
+    <section><h2>Extrato de liquidações</h2><form onSubmit={enviar('extrato', async form => {
+      const d = new FormData(form); setLiquidacoes(await api.listarLiquidacoes({ dataInicio: String(d.get('dataInicio') || ''), dataFim: String(d.get('dataFim') || ''), cedenteId: String(d.get('cedenteId') || ''), moeda: String(d.get('moeda') || '') as Moeda }))
+    })}>{campo('dataInicio', 'Data inicial', 'date')}{campo('dataFim', 'Data final', 'date')}<label>Cedente<select name="cedenteId"><option value="">Todos</option>{cedentes.map(cedente => <option key={cedente.id} value={cedente.id}>{cedente.nome}</option>)}</select></label><label>Moeda<select name="moeda"><option value="">Todas</option>{opcoesMoeda}</select></label><button disabled={busy === 'extrato'}>Filtrar</button></form>{liquidacoes.length > 0 && <table><thead><tr><th>Data</th><th>Recebível</th><th>Moeda</th><th>Valor final</th></tr></thead><tbody>{liquidacoes.map(item => <tr key={item.id}><td>{new Date(item.liquidadoEm).toLocaleString('pt-BR')}</td><td>{item.recebivelId}</td><td>{item.moedaPagamento}</td><td>{dinheiro(item.valorFinal, item.moedaPagamento)}</td></tr>)}</tbody></table>}</section>
+  </main>
 }
+
 export default App
