@@ -45,15 +45,21 @@ function App() {
     const moedaPagamento = String(d.get('moedaPagamento')) as Moeda
     const sequenciaAtual = ++sequenciaSimulacao.current
 
-    const resposta = await api.simular({
-      valorFace,
-      dataVencimento,
-      tipo,
-      moedaPagamento,
-    })
+    try {
+      const resposta = await api.simular({
+        valorFace,
+        dataVencimento,
+        tipo,
+        moedaPagamento,
+      })
 
-    if (sequenciaAtual === sequenciaSimulacao.current) {
-      setResultado(resposta)
+      if (sequenciaAtual === sequenciaSimulacao.current) {
+        setResultado(resposta)
+      }
+    } catch (error) {
+      if (sequenciaAtual === sequenciaSimulacao.current) {
+        mostrarErro(error)
+      }
     }
   }
   useEffect(() => { void carregar().catch(mostrarErro) }, [])
@@ -77,14 +83,7 @@ function App() {
       const vencimento = new Date(`${dataVencimento}T00:00:00`)
       if (vencimento <= hoje) return
 
-      const sequenciaEsperada = sequenciaSimulacao.current + 1
-      try {
-        await executarSimulacao(form)
-      } catch (error) {
-        if (sequenciaEsperada === sequenciaSimulacao.current) {
-          mostrarErro(error)
-        }
-      }
+      await executarSimulacao(form)
     }, 400)
 
     return () => window.clearTimeout(timer)
