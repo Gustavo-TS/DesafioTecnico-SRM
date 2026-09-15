@@ -1,7 +1,9 @@
 package com.srm.creditengine.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import com.srm.creditengine.model.Liquidacao;
 import com.srm.creditengine.model.Moeda;
 import com.srm.creditengine.model.Recebivel;
+import com.srm.creditengine.model.ResultadoLiquidacao;
 import com.srm.creditengine.model.ResultadoPrecificacao;
 import com.srm.creditengine.model.StatusRecebivel;
 import com.srm.creditengine.model.TaxaCambio;
@@ -93,20 +96,22 @@ class LiquidacaoServiceTest {
         when(liquidacaoRepository.save(any(Liquidacao.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Liquidacao resultado = liquidacaoService.liquidar(
+        ResultadoLiquidacao resultado = liquidacaoService.liquidar(
                 recebivelId,
                 Moeda.BRL,
                 "abc-123"
         );
 
+        assertTrue(resultado.criada());
+
         assertEquals(
                 new BigDecimal("92859.94"),
-                resultado.getValorFinal()
+                resultado.liquidacao().getValorFinal()
         );
 
         assertEquals(
                 Moeda.BRL,
-                resultado.getMoedaPagamento()
+                resultado.liquidacao().getMoedaPagamento()
         );
 
         assertEquals(
@@ -138,13 +143,18 @@ class LiquidacaoServiceTest {
         when(liquidacaoRepository.findByIdempotencyKey(idempotencyKey))
                 .thenReturn(Optional.of(liquidacaoExistente));
 
-        Liquidacao resultado = liquidacaoService.liquidar(
+        ResultadoLiquidacao resultado = liquidacaoService.liquidar(
                 recebivelId,
                 Moeda.BRL,
                 idempotencyKey
         );
 
-        assertEquals(liquidacaoExistente, resultado);
+        assertFalse(resultado.criada());
+
+        assertEquals(
+                liquidacaoExistente,
+                resultado.liquidacao()
+        );
 
         verify(liquidacaoRepository, never())
                 .save(any(Liquidacao.class));
@@ -252,30 +262,32 @@ class LiquidacaoServiceTest {
         when(liquidacaoRepository.save(any(Liquidacao.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Liquidacao resultado = liquidacaoService.liquidar(
+        ResultadoLiquidacao resultado = liquidacaoService.liquidar(
                 recebivelId,
                 Moeda.USD,
                 "usd-123"
         );
 
+        assertTrue(resultado.criada());
+
         assertEquals(
                 new BigDecimal("17094.67"),
-                resultado.getValorFinal()
+                resultado.liquidacao().getValorFinal()
         );
 
         assertEquals(
                 Moeda.USD,
-                resultado.getMoedaPagamento()
+                resultado.liquidacao().getMoedaPagamento()
         );
 
         assertEquals(
                 new BigDecimal("5.4321"),
-                resultado.getTaxaCambioUtilizada()
+                resultado.liquidacao().getTaxaCambioUtilizada()
         );
 
         assertEquals(
                 taxaCambio.getVigenteEm(),
-                resultado.getTaxaCambioVigenteEm()
+                resultado.liquidacao().getTaxaCambioVigenteEm()
         );
 
         assertEquals(
