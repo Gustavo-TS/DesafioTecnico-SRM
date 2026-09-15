@@ -21,6 +21,10 @@ function App() {
   const [erro, setErro] = useState('')
   const [busy, setBusy] = useState('')
   const chaveLiquidacao = useRef<string | null>(null)
+  const formularioSimulacao = useRef<HTMLFormElement | null>(null)
+  const [versaoSimulacao, setVersaoSimulacao] = useState(0)
+  const sequenciaSimulacao = useRef(0)
+  const simulacaoAutomaticaHabilitada = useRef(false)
 
   const carregar = async () => {
     const [listaCedentes, listaRecebiveis] = await Promise.all([api.listarCedentes(), api.listarRecebiveis()])
@@ -30,11 +34,55 @@ function App() {
 
   const mostrarErro = (error: unknown) => setErro(error instanceof Error ? error.message : 'Erro ao processar solicitação.')
   useEffect(() => { void carregar().catch(mostrarErro) }, [])
+  useEffect(() => {
+    if (!simulacaoAutomaticaHabilitada.current || versaoSimulacao === 0) return
+
+    setResultado(null)
+    const sequenciaAtual = ++sequenciaSimulacao.current
+
+    const timer = window.setTimeout(async () => {
+      const form = formularioSimulacao.current
+      if (!form) return
+
+      const d = new FormData(form)
+      const valorFace = Number(d.get('valorFace'))
+      const dataVencimento = String(d.get('dataVencimento') || '')
+      const tipo = String(d.get('tipo')) as TipoRecebivel
+      const moedaPagamento = String(d.get('moedaPagamento')) as Moeda
+
+      if (!valorFace || valorFace <= 0 || !dataVencimento) return
+
+      const hoje = new Date()
+      hoje.setHours(0, 0, 0, 0)
+
+      const vencimento = new Date(`${dataVencimento}T00:00:00`)
+      if (vencimento <= hoje) return
+
+      try {
+        const resposta = await api.simular({
+          valorFace,
+          dataVencimento,
+          tipo,
+          moedaPagamento,
+        })
+
+        if (sequenciaAtual === sequenciaSimulacao.current) {
+          setResultado(resposta)
+        }
+      } catch (error) {
+        if (sequenciaAtual === sequenciaSimulacao.current) {
+          mostrarErro(error)
+        }
+      }
+    }, 400)
+
+    return () => window.clearTimeout(timer)
+  }, [versaoSimulacao])
   const enviar = (nome: string, acao: (form: HTMLFormElement) => Promise<void>) => async (evento: FormEvent<HTMLFormElement>) => {
     evento.preventDefault(); setBusy(nome); setMensagem(''); setErro('')
     try { await acao(evento.currentTarget) } catch (erro) { mostrarErro(erro) } finally { setBusy('') }
   }
-  const campo = (name: string, label: string, type = 'text', obrigatorio = true) => <label>{label}<input required={obrigatorio} name={name} type={type} step={type === 'number' ? 'any' : undefined} /></label>
+  const campo = (name: string, label: string, type = 'text', obrigatorio = true) => <label>{label}<input required={obrigatorio} name={name} type={type} step={type === 'number' ? 'any' : undefined} min={type === 'date' ? '1000-01-01' : type === 'datetime-local' ? '1000-01-01T00:00' : undefined} max={type === 'date' ? '9999-12-31' : type === 'datetime-local' ? '9999-12-31T23:59' : undefined} /></label>
   const opcoesMoeda = moedas.map(moeda => <option key={moeda}>{moeda}</option>)
   const opcoesTipo = tipos.map(tipo => <option key={tipo}>{tipo}</option>)
   const recebiveisPendentes = recebiveis.filter(recebivel => recebivel.status === 'PENDENTE')
@@ -48,10 +96,10 @@ function App() {
     {mensagem && <div className="alert">{mensagem}</div>}
     {erro && <div className="modal-backdrop" role="presentation" onClick={() => setErro('')}><div className="error-modal" role="alertdialog" aria-modal="true" aria-label="Mensagem de erro" onClick={event => event.stopPropagation()}><button className="modal-close" type="button" aria-label="Fechar mensagem de erro" onClick={() => setErro('')}>×</button><p>{erro}</p></div></div>}
 
-    <section id="simulacao" className="principal" hidden={secao !== 'todos' && secao !== 'simulacao'}><h2>Simulação</h2><form onSubmit={enviar('simular', async form => {
+    <section id="simulacao" className="principal" hidden={secao !== 'todos' && secao !== 'simulacao'}><h2>Simulação</h2><form ref={formularioSimulacao} onChange={() => setVersaoSimulacao(valor => valor + 1)} onSubmit={evento => { simulacaoAutomaticaHabilitada.current = true; void enviar('simular', async form => {
       const d = new FormData(form)
       setResultado(await api.simular({ valorFace: Number(d.get('valorFace')), dataVencimento: String(d.get('dataVencimento')), tipo: String(d.get('tipo')) as TipoRecebivel, moedaPagamento: String(d.get('moedaPagamento')) as Moeda }))
-    })}>{campo('valorFace', 'Valor de face', 'number')}{campo('dataVencimento', 'Data de vencimento', 'date')}<label>Tipo<select name="tipo">{opcoesTipo}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{opcoesMoeda}</select></label><button disabled={busy === 'simular'}>Simular</button></form>{resultado && <div className="resultado resumo-simulacao"><b>Resumo da simulação</b><p>Valor presente <strong>{dinheiro(resultado.valorPresente, 'BRL')}</strong></p><p>Deságio <strong>{dinheiro(resultado.valorDesagio, 'BRL')}</strong></p><p>Prazo <strong>{resultado.prazoMeses} meses</strong></p><p>Taxa base <strong>{percentual(resultado.taxaBase)}</strong></p><p>Spread <strong>{percentual(resultado.spread)}</strong></p>{resultado.taxaCambioUtilizada != null && <p>Taxa de câmbio <strong>{resultado.taxaCambioUtilizada}</strong></p>}<p className="total">Valor final <strong>{dinheiro(resultado.valorFinal, resultado.moedaPagamento)}</strong></p></div>}</section>
+    })(evento) }}>{campo('valorFace', 'Valor de face', 'number')}{campo('dataVencimento', 'Data de vencimento', 'date')}<label>Tipo<select name="tipo">{opcoesTipo}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{opcoesMoeda}</select></label><button disabled={busy === 'simular'}>Simular</button></form>{resultado && <div className="resultado resumo-simulacao"><b>Resumo da simulação</b><p>Valor presente <strong>{dinheiro(resultado.valorPresente, 'BRL')}</strong></p><p>Deságio <strong>{dinheiro(resultado.valorDesagio, 'BRL')}</strong></p><p>Prazo <strong>{resultado.prazoMeses} meses</strong></p><p>Taxa base <strong>{percentual(resultado.taxaBase)}</strong></p><p>Spread <strong>{percentual(resultado.spread)}</strong></p>{resultado.taxaCambioUtilizada != null && <p>Taxa de câmbio <strong>{resultado.taxaCambioUtilizada}</strong></p>}<p className="total">Valor final <strong>{dinheiro(resultado.valorFinal, resultado.moedaPagamento)}</strong></p></div>}</section>
 
     <div className="cols" hidden={secao !== 'todos' && secao !== 'cedente' && secao !== 'cambio'}><section hidden={secao !== 'todos' && secao !== 'cedente'}><h2>Cadastro de cedente</h2><form onSubmit={enviar('cedente', async form => {
       const d = new FormData(form); await api.criarCedente({ nome: String(d.get('nome')), documento: String(d.get('documento')) }); await carregar(); setMensagem('Cedente cadastrado.')
