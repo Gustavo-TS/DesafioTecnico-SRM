@@ -33,13 +33,30 @@ function App() {
   }
 
   const mostrarErro = (error: unknown) => setErro(error instanceof Error ? error.message : 'Erro ao processar solicitação.')
+  const executarSimulacao = async (form: HTMLFormElement) => {
+    const d = new FormData(form)
+    const valorFace = Number(d.get('valorFace'))
+    const dataVencimento = String(d.get('dataVencimento') || '')
+    const tipo = String(d.get('tipo')) as TipoRecebivel
+    const moedaPagamento = String(d.get('moedaPagamento')) as Moeda
+    const sequenciaAtual = ++sequenciaSimulacao.current
+
+    const resposta = await api.simular({
+      valorFace,
+      dataVencimento,
+      tipo,
+      moedaPagamento,
+    })
+
+    if (sequenciaAtual === sequenciaSimulacao.current) {
+      setResultado(resposta)
+    }
+  }
   useEffect(() => { void carregar().catch(mostrarErro) }, [])
   useEffect(() => {
     if (!simulacaoAutomaticaHabilitada.current || versaoSimulacao === 0) return
 
     setResultado(null)
-    const sequenciaAtual = ++sequenciaSimulacao.current
-
     const timer = window.setTimeout(async () => {
       const form = formularioSimulacao.current
       if (!form) return
@@ -47,8 +64,6 @@ function App() {
       const d = new FormData(form)
       const valorFace = Number(d.get('valorFace'))
       const dataVencimento = String(d.get('dataVencimento') || '')
-      const tipo = String(d.get('tipo')) as TipoRecebivel
-      const moedaPagamento = String(d.get('moedaPagamento')) as Moeda
 
       if (!valorFace || valorFace <= 0 || !dataVencimento) return
 
@@ -58,19 +73,11 @@ function App() {
       const vencimento = new Date(`${dataVencimento}T00:00:00`)
       if (vencimento <= hoje) return
 
+      const sequenciaEsperada = sequenciaSimulacao.current + 1
       try {
-        const resposta = await api.simular({
-          valorFace,
-          dataVencimento,
-          tipo,
-          moedaPagamento,
-        })
-
-        if (sequenciaAtual === sequenciaSimulacao.current) {
-          setResultado(resposta)
-        }
+        await executarSimulacao(form)
       } catch (error) {
-        if (sequenciaAtual === sequenciaSimulacao.current) {
+        if (sequenciaEsperada === sequenciaSimulacao.current) {
           mostrarErro(error)
         }
       }
@@ -96,10 +103,7 @@ function App() {
     {mensagem && <div className="alert">{mensagem}</div>}
     {erro && <div className="modal-backdrop" role="presentation" onClick={() => setErro('')}><div className="error-modal" role="alertdialog" aria-modal="true" aria-label="Mensagem de erro" onClick={event => event.stopPropagation()}><button className="modal-close" type="button" aria-label="Fechar mensagem de erro" onClick={() => setErro('')}>×</button><p>{erro}</p></div></div>}
 
-    <section id="simulacao" className="principal" hidden={secao !== 'todos' && secao !== 'simulacao'}><h2>Simulação</h2><form ref={formularioSimulacao} onChange={() => setVersaoSimulacao(valor => valor + 1)} onSubmit={evento => { simulacaoAutomaticaHabilitada.current = true; void enviar('simular', async form => {
-      const d = new FormData(form)
-      setResultado(await api.simular({ valorFace: Number(d.get('valorFace')), dataVencimento: String(d.get('dataVencimento')), tipo: String(d.get('tipo')) as TipoRecebivel, moedaPagamento: String(d.get('moedaPagamento')) as Moeda }))
-    })(evento) }}>{campo('valorFace', 'Valor de face', 'number')}{campo('dataVencimento', 'Data de vencimento', 'date')}<label>Tipo<select name="tipo">{opcoesTipo}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{opcoesMoeda}</select></label><button disabled={busy === 'simular'}>Simular</button></form>{resultado && <div className="resultado resumo-simulacao"><b>Resumo da simulação</b><p>Valor presente <strong>{dinheiro(resultado.valorPresente, 'BRL')}</strong></p><p>Deságio <strong>{dinheiro(resultado.valorDesagio, 'BRL')}</strong></p><p>Prazo <strong>{resultado.prazoMeses} meses</strong></p><p>Taxa base <strong>{percentual(resultado.taxaBase)}</strong></p><p>Spread <strong>{percentual(resultado.spread)}</strong></p>{resultado.taxaCambioUtilizada != null && <p>Taxa de câmbio <strong>{resultado.taxaCambioUtilizada}</strong></p>}<p className="total">Valor final <strong>{dinheiro(resultado.valorFinal, resultado.moedaPagamento)}</strong></p></div>}</section>
+    <section id="simulacao" className="principal" hidden={secao !== 'todos' && secao !== 'simulacao'}><h2>Simulação</h2><form ref={formularioSimulacao} onChange={() => { sequenciaSimulacao.current++; setVersaoSimulacao(valor => valor + 1) }} onSubmit={evento => { simulacaoAutomaticaHabilitada.current = true; void enviar('simular', executarSimulacao)(evento) }}>{campo('valorFace', 'Valor de face', 'number')}{campo('dataVencimento', 'Data de vencimento', 'date')}<label>Tipo<select name="tipo">{opcoesTipo}</select></label><label>Moeda de pagamento<select name="moedaPagamento">{opcoesMoeda}</select></label><button disabled={busy === 'simular'}>Simular</button></form>{resultado && <div className="resultado resumo-simulacao"><b>Resumo da simulação</b><p>Valor presente <strong>{dinheiro(resultado.valorPresente, 'BRL')}</strong></p><p>Deságio <strong>{dinheiro(resultado.valorDesagio, 'BRL')}</strong></p><p>Prazo <strong>{resultado.prazoMeses} meses</strong></p><p>Taxa base <strong>{percentual(resultado.taxaBase)}</strong></p><p>Spread <strong>{percentual(resultado.spread)}</strong></p>{resultado.taxaCambioUtilizada != null && <p>Taxa de câmbio <strong>{resultado.taxaCambioUtilizada}</strong></p>}<p className="total">Valor final <strong>{dinheiro(resultado.valorFinal, resultado.moedaPagamento)}</strong></p></div>}</section>
 
     <div className="cols" hidden={secao !== 'todos' && secao !== 'cedente' && secao !== 'cambio'}><section hidden={secao !== 'todos' && secao !== 'cedente'}><h2>Cadastro de cedente</h2><form onSubmit={enviar('cedente', async form => {
       const d = new FormData(form); await api.criarCedente({ nome: String(d.get('nome')), documento: String(d.get('documento')) }); await carregar(); setMensagem('Cedente cadastrado.')
