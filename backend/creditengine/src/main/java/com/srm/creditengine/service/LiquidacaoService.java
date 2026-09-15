@@ -6,16 +6,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.srm.creditengine.model.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.srm.creditengine.exception.RecursoNaoEncontradoException;
-import com.srm.creditengine.model.Liquidacao;
-import com.srm.creditengine.model.Moeda;
-import com.srm.creditengine.model.Recebivel;
-import com.srm.creditengine.model.ResultadoPrecificacao;
-import com.srm.creditengine.model.StatusRecebivel;
-import com.srm.creditengine.model.TaxaCambio;
 import com.srm.creditengine.repository.LiquidacaoRepository;
 import com.srm.creditengine.repository.RecebivelRepository;
 
@@ -79,11 +74,11 @@ public class LiquidacaoService {
     }
 
     @Transactional
-    public Liquidacao liquidar(
+    public ResultadoLiquidacao liquidar(
             UUID recebivelId,
             Moeda moedaPagamento,
             String idempotencyKey
-    ) {
+    ){
 
         var liquidacaoExistente =
                 liquidacaoRepository.findByIdempotencyKey(idempotencyKey);
@@ -106,7 +101,10 @@ public class LiquidacaoService {
                 );
             }
 
-            return existente;
+            return new ResultadoLiquidacao(
+                    existente,
+                    false
+            );
         }
 
         Recebivel recebivel = recebivelRepository
@@ -201,6 +199,12 @@ public class LiquidacaoService {
 
         recebivelRepository.save(recebivel);
 
-        return liquidacaoRepository.save(liquidacao);
+        Liquidacao liquidacaoSalva =
+                liquidacaoRepository.save(liquidacao);
+
+        return new ResultadoLiquidacao(
+                liquidacaoSalva,
+                true
+        );
     }
 }

@@ -20,6 +20,7 @@ import com.srm.creditengine.dto.LiquidacaoRequest;
 import com.srm.creditengine.dto.LiquidacaoResponse;
 import com.srm.creditengine.model.Liquidacao;
 import com.srm.creditengine.model.Moeda;
+import com.srm.creditengine.model.ResultadoLiquidacao;
 import com.srm.creditengine.service.LiquidacaoService;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,16 +46,20 @@ public class LiquidacaoController {
             @Valid @RequestBody LiquidacaoRequest request
     ) {
 
-        Liquidacao liquidacao =
+        ResultadoLiquidacao resultado =
                 liquidacaoService.liquidar(
                         recebivelId,
                         request.moedaPagamento(),
                         idempotencyKey
                 );
 
+        HttpStatus status = resultado.criada()
+                ? HttpStatus.CREATED
+                : HttpStatus.OK;
+
         return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(toResponse(liquidacao));
+                .status(status)
+                .body(toResponse(resultado.liquidacao()));
     }
 
     @GetMapping("/liquidacoes")
