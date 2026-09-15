@@ -120,6 +120,14 @@ Comportamento:
 
 Essa abordagem evita duplicidade causada por retry de rede ou duplo clique.
 
+### Limite concorrente conhecido
+
+As constraints únicas de `recebivel_id` e `idempotency_key` protegem a integridade do banco contra duplicações mesmo em cenários concorrentes.
+
+Porém, a aplicação não possui tratamento específico para uma violação de constraint ocorrida em uma disputa simultânea entre requisições. Nesse caso, a integridade dos dados é preservada pelo banco, mas a resposta HTTP pode não ser convertida para um `409 Conflict` de forma específica.
+
+Optimistic locking e tratamento dedicado de concorrência foram mantidos fora do escopo por serem requisitos de nível superior no desafio.
+
 ## 11. API REST e erros
 
 A API utiliza códigos HTTP semânticos:

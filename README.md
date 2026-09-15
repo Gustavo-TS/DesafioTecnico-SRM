@@ -35,6 +35,14 @@ O projeto foi desenvolvido para o desafio técnico da SRM, priorizando corretude
 - TypeScript
 - Vite
 
+### Justificativa da stack
+
+Java e Spring Boot foram escolhidos pela tipagem forte, suporte maduro a transações, integração com JPA e boa adequação a regras de negócio financeiras com `BigDecimal`.
+
+PostgreSQL foi utilizado pela integridade relacional, suporte a constraints e comportamento transacional ACID, importantes para evitar inconsistências em liquidações.
+
+React com TypeScript foi utilizado para construir um painel simples e tipado, mantendo a lógica financeira concentrada no backend e reduzindo o risco de divergência de regras no cliente.
+
 ## Estrutura
 
 ```text
@@ -67,7 +75,7 @@ O projeto utiliza PostgreSQL com um modelo relacional simples.
 
 ```mermaid
 erDiagram
-    CEDENTE   ||--o| RECEBIVEL  : possui
+    CEDENTE ||--o{ RECEBIVEL : possui
     RECEBIVEL ||--o| LIQUIDACAO : possui
 
     CEDENTE {
@@ -107,7 +115,7 @@ erDiagram
         NUMERIC valor_presente
         NUMERIC valor_desagio
         VARCHAR moeda_pagamento
-        NUMERIC taxa_cambio
+        NUMERIC taxa_cambio_utilizada
         TIMESTAMP taxa_cambio_vigente_em
         NUMERIC valor_final
         TIMESTAMP liquidado_em
@@ -149,6 +157,14 @@ Os casos obrigatórios do desafio possuem testes automatizados:
 
 No C3 é utilizada a taxa BRL/USD `5,4321`.
 
+## Simulação no frontend
+
+A primeira simulação é disparada manualmente pelo botão **Simular**.
+
+Depois da primeira execução, alterações em valor, vencimento, tipo ou moeda atualizam a simulação automaticamente com debounce de `400 ms`.
+
+O frontend ignora respostas e erros de simulações antigas quando os dados do formulário já foram alterados.
+
 ## Idempotência
 
 O endpoint de liquidação exige o header:
@@ -163,6 +179,8 @@ Comportamento:
 - retry da mesma operação com a mesma chave → `200 OK`, sem nova liquidação;
 - mesma chave usada em outra operação → `409 Conflict`;
 - tentativa de liquidar novamente um recebível já liquidado → `409 Conflict`.
+
+No frontend, a chave é vinculada ao par `recebivelId + moedaPagamento`, sendo reutilizada somente para retry da mesma operação.
 
 A persistência também possui restrições de unicidade para a chave idempotente e para o recebível associado à liquidação.
 
@@ -194,6 +212,26 @@ A API não expõe operações de atualização ou exclusão de liquidações.
 - Node.js 20.19+ ou 22.12+
 - npm
 
+### Banco de dados
+
+O banco PostgreSQL deve existir previamente.
+
+A aplicação utiliza:
+
+```properties
+spring.jpa.hibernate.ddl-auto=update
+```
+
+Portanto, o Hibernate cria ou atualiza as tabelas necessárias dentro do banco já existente.
+
+A configuração padrão usa:
+
+```env
+PGSSLMODE=require
+```
+
+Esse valor exige uma conexão PostgreSQL compatível com SSL. Em uma instalação local sem SSL, utilize um valor de `PGSSLMODE` compatível com o ambiente local.
+
 ### Backend
 
 Entre na pasta:
@@ -211,8 +249,6 @@ PGUSER=seu-usuario
 PGPASSWORD=sua-senha
 PGSSLMODE=require
 ```
-
-A aplicação lê essas variáveis no `application.properties`.
 
 Execute:
 
@@ -243,6 +279,8 @@ O conjunto atual cobre:
 - retry idempotente;
 - reutilização incompatível de `Idempotency-Key`;
 - tentativa de nova liquidação de recebível já liquidado.
+
+A suíte também inclui `contextLoads`, que inicializa o contexto Spring. Por isso, a execução dos testes depende de uma configuração de banco válida e acessível no ambiente.
 
 ### Frontend
 

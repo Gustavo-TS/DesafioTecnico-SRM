@@ -67,7 +67,12 @@ Valores monetários finais utilizam duas casas decimais e:
 
 `RoundingMode.HALF_EVEN`
 
-A taxa de câmbio possui precisão maior que os valores monetários, permitindo armazenar taxas como `5.43210000`.
+Na persistência:
+
+- valores monetários utilizam `NUMERIC(19,2)`;
+- taxas utilizam `NUMERIC(19,8)`.
+
+A maior escala das taxas permite armazenar valores como `5.43210000` sem reduzir a precisão antes do cálculo.
 
 ### Câmbio
 
@@ -222,6 +227,13 @@ As regras financeiras permanecem exclusivamente no backend.
 
 ### Desempenho
 
-Para o escopo atual, as operações devem executar de forma síncrona e com tempo adequado para uso interativo.
+Como meta de uso interativo, as operações síncronas de cadastro, consulta e simulação devem responder em até `1 segundo` em ambiente de desenvolvimento, considerando:
 
-Não foram introduzidos mecanismos adicionais de cache, filas ou processamento distribuído, pois não são necessários para o volume e o escopo propostos.
+- backend e frontend executando localmente;
+- banco de dados acessível e sem indisponibilidade;
+- ausência de carga concorrente significativa;
+- sem contabilizar atrasos causados por rede externa ou infraestrutura remota fora da aplicação.
+
+Essa meta é um critério de projeto e não representa um benchmark formal já executado.
+
+Não foram introduzidos cache, filas ou processamento distribuído porque não são necessários para o volume e o escopo propostos.
