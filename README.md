@@ -67,7 +67,7 @@ O projeto utiliza PostgreSQL com um modelo relacional simples.
 
 ```mermaid
 erDiagram
-    CEDENTE   ||--o| RECEBIVEL  : possui
+    CEDENTE   ||--o{ RECEBIVEL  : possui
     RECEBIVEL ||--o| LIQUIDACAO : possui
 
     CEDENTE {
