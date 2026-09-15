@@ -16,13 +16,39 @@ export type FiltrosLiquidacao = { dataInicio?: string; dataFim?: string; cedente
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
 
+const nomesCampos: Record<string, string> = {
+  nome: 'Nome',
+  documento: 'Documento',
+  cedenteId: 'Cedente',
+  recebivelId: 'Recebível',
+  tipo: 'Tipo',
+  valorFace: 'Valor de face',
+  dataVencimento: 'Data de vencimento',
+  moedaPagamento: 'Moeda de pagamento',
+  moedaOrigem: 'Moeda de origem',
+  moedaDestino: 'Moeda de destino',
+  taxa: 'Taxa',
+  vigenteEm: 'Vigência',
+  dataInicio: 'Data inicial',
+  dataFim: 'Data final',
+}
+
 async function mensagemErro(response: Response) {
   const text = await response.text()
   if (!text) return `Erro na requisição (${response.status}).`
 
   try {
-    const body = JSON.parse(text) as { message?: unknown }
-    if (typeof body.message === 'string' && body.message) return body.message
+    const body = JSON.parse(text) as { erro?: unknown; message?: unknown; campos?: Record<string, unknown> }
+    const mensagem = typeof body.erro === 'string' && body.erro
+      ? body.erro
+      : typeof body.message === 'string' && body.message
+        ? body.message
+        : ''
+    const detalhes = Object.entries(body.campos ?? {})
+      .filter(([, erro]) => typeof erro === 'string' && erro)
+      .map(([campo, erro]) => `${nomesCampos[campo] ?? campo}: ${erro}`)
+
+    if (mensagem || detalhes.length) return [mensagem, ...detalhes].filter(Boolean).join('\n')
   } catch {}
 
   return text
