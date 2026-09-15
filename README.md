@@ -61,6 +61,61 @@ strategy
 exception
 ```
 
+## Modelo de dados
+
+O projeto utiliza PostgreSQL com um modelo relacional simples.
+
+```mermaid
+erDiagram
+    CEDENTE   ||--o| RECEBIVEL  : possui
+    RECEBIVEL ||--o| LIQUIDACAO : possui
+
+    CEDENTE {
+        UUID id PK
+        VARCHAR nome
+        VARCHAR documento UK
+        TIMESTAMP criado_em
+    }
+
+    RECEBIVEL {
+        UUID id PK
+        UUID cedente_id FK
+        VARCHAR tipo
+        NUMERIC valor_face
+        DATE data_vencimento
+        VARCHAR status
+        TIMESTAMP criado_em
+    }
+
+    TAXA_CAMBIO {
+        UUID id PK
+        VARCHAR moeda_origem
+        VARCHAR moeda_destino
+        NUMERIC taxa
+        TIMESTAMP vigente_em
+        TIMESTAMP criado_em
+    }
+
+    LIQUIDACAO {
+        UUID id PK
+        UUID recebivel_id FK,UK
+        VARCHAR idempotency_key UK
+        NUMERIC valor_face
+        NUMERIC taxa_base
+        NUMERIC spread
+        INTEGER prazo_meses
+        NUMERIC valor_presente
+        NUMERIC valor_desagio
+        VARCHAR moeda_pagamento
+        NUMERIC taxa_cambio
+        TIMESTAMP taxa_cambio_vigente_em
+        NUMERIC valor_final
+        TIMESTAMP liquidado_em
+    }
+```
+
+`TaxaCambio` não possui relacionamento direto com `Liquidacao`. A liquidação armazena um snapshot da taxa e de sua vigência utilizadas na operação, preservando a auditabilidade mesmo que novas taxas sejam cadastradas depois.
+
 ## Regras principais
 
 A precificação utiliza:
@@ -136,7 +191,7 @@ A API não expõe operações de atualização ou exclusão de liquidações.
 - Java 21
 - Maven
 - PostgreSQL
-- Node.js compatível com a versão do Vite utilizada no projeto
+- Node.js 20.19+ ou 22.12+
 - npm
 
 ### Backend
@@ -203,11 +258,13 @@ Instale as dependências:
 npm install
 ```
 
-Crie um `.env` a partir do `.env.example` e configure:
+Crie um `.env` a partir do `.env.example`:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8080
+VITE_API_BASE_URL=/
 ```
+
+No ambiente de desenvolvimento, as chamadas usam caminhos relativos e passam pelo proxy configurado no Vite para o backend local.
 
 Depois execute:
 
@@ -228,7 +285,7 @@ Um fluxo típico é:
 ```text
 1. cadastrar cedente
 2. cadastrar recebível
-3. cadastrar taxa BRL/USD, se necessário
+3. cadastrar taxa BRL/USD, se necessária
 4. simular a precificação
 5. liquidar o recebível
 6. consultar o extrato
