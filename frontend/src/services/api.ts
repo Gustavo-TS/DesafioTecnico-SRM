@@ -21,7 +21,8 @@ async function mensagemErro(response: Response) {
   if (!text) return `Erro na requisição (${response.status}).`
 
   try {
-    const body = JSON.parse(text) as { message?: unknown }
+    const body = JSON.parse(text) as { erro?: unknown; message?: unknown }
+    if (typeof body.erro === 'string' && body.erro) return body.erro
     if (typeof body.message === 'string' && body.message) return body.message
   } catch {}
 
