@@ -125,24 +125,25 @@ function App() {
       const d = new FormData(form)
       const recebivelId = String(d.get('recebivelId'))
       const moedaPagamento = String(d.get('moedaPagamento')) as Moeda
-      const operacaoAtual = operacaoLiquidacao.current
+      let operacaoAtual = operacaoLiquidacao.current
 
       if (
         !operacaoAtual ||
         operacaoAtual.recebivelId !== recebivelId ||
         operacaoAtual.moedaPagamento !== moedaPagamento
       ) {
-        operacaoLiquidacao.current = {
+        operacaoAtual = {
           chave: crypto.randomUUID(),
           recebivelId,
           moedaPagamento,
         }
+        operacaoLiquidacao.current = operacaoAtual
       }
 
       const liquidacao = await api.liquidar(
         recebivelId,
         moedaPagamento,
-        operacaoLiquidacao.current.chave,
+        operacaoAtual.chave,
       )
 
       setResultadoLiquidacao(liquidacao)
